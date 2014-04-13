@@ -1,0 +1,486 @@
+<html>
+<head>
+<style>
+body{
+	background:#666666;
+	margin:0;
+	padding:0;
+}
+.container{
+	position:relative;
+	margin:100px auto 0;
+	border:2px solid #CCCC66;
+	background:#000000;
+	box-shadow:0 4px 20px rgba(0,0,0,0.5);
+}
+.container .light,.container .worst{
+	position:absolute;
+	margin:-5px;
+	width:10px;
+	height:10px;
+	border-radius:5px;
+}
+.container .light{
+	background:#FFFF00;
+}
+.container .worst{
+	background:#FF0000;
+}
+</style>
+</head>
+<body>
+<script>
+
+window.addEventListener( 'load', function( ) {
+	'use strict';
+	
+	var
+	width = 25,
+	height = 15,
+	depth = 2.5,
+	atten = 0.4,
+	lights = 3,
+	scale = 10,
+	displayScale = 30,
+	drawShift = 0,
+	smooth = true,
+	
+	w = (width * scale)|0,
+	h = (height * scale)|0,
+	s = w * h,
+	d = (depth * scale),
+	d2 = d * d,
+	dw = width * displayScale,
+	dh = height * displayScale,
+	w2 = w * 2 - 1,
+	h2 = h * 2 - 1,
+	wm = w - 1,
+	hm = h - 1,
+	container = document.createElement( 'div' ),
+	canvas = document.createElement( 'canvas' );
+	canvas.setAttribute( 'width', smooth ? w : dw );
+	canvas.setAttribute( 'height', smooth ? h : dh );
+	container.style.width = canvas.style.width = dw + 'px';
+	container.style.height = canvas.style.height = dh + 'px';
+	container.className = 'container';
+	container.appendChild( canvas );
+	document.body.appendChild( container );
+	
+	var
+	context = canvas.getContext( '2d' ),
+	data = context.createImageData( smooth ? w : dw, smooth ? h : dh ),
+	disp = data.data,
+	dat = new Uint8Array( s ),
+	marks = [],
+	worst = document.createElement( 'div' );
+	worst.className = 'worst';
+	container.appendChild( worst );
+	for( var i = 0; i < lights; ++ i ) {
+		var o = document.createElement( 'div' );
+		o.className = 'light';
+		container.appendChild( o );
+		marks.push( o );
+	}
+	
+	for( var i = 0; i < disp.length; ++ i ) {
+		disp[i] = 255;
+	}
+	
+	var
+	pos = new Uint16Array( lights * 2 ),
+	cache1 = new Uint16Array( (w * w + h * h) * 4 + 8 * (w + h) + 8 ),
+	cache2 = new Uint16Array( cache1.length ),
+	cache3 = new Uint16Array( cache1.length );
+	for( var i = 0; i < cache1.length; ++ i ) {
+		cache1[i] = ((65535 * d2) / (i + d2)) | 0;
+		cache2[i] = (cache1[i] * atten)|0;
+		cache3[i] = (cache2[i] * atten * atten)|0;
+	}
+	
+	function calc( x, y, m ) {
+		var v = 0, i, X, Y, xx, yy, W = w2 - x, H = h2 - y;
+		for( i = 0; i < lights; ++ i ) {
+			X = pos[ i<<1   ];
+			Y = pos[(i<<1)|1];
+			xx = x - X; yy = y - Y; v += cache1[xx*xx+yy*yy];
+			if( v >= m ) { return m; }
+			xx = x+X+1;             v += cache2[xx*xx+yy*yy];
+			xx = W - X;             v += cache2[xx*xx+yy*yy];
+			xx = x - X; yy = y+Y+1; v += cache2[xx*xx+yy*yy];
+			            yy = H - Y; v += cache2[xx*xx+yy*yy];
+			if( v >= m ) { return m; }
+			xx = x+X+1; yy = y+Y+1; v += cache3[xx*xx+yy*yy];
+			xx = W - X;             v += cache3[xx*xx+yy*yy];
+			xx = x+X+1; yy = H - Y; v += cache3[xx*xx+yy*yy];
+			xx = W - X;             v += cache3[xx*xx+yy*yy];
+			if( v >= m ) { return m; }
+		}
+		return v;
+	}
+	
+	function render( ) {
+		var
+		i,
+		j,
+		v,
+		J,
+		wv=131072,
+		wx,
+		wy;
+		for( j = 0; j < h; ++ j ) {
+			for( i = 0; i < w; ++ i ) {
+				v = calc( i, j, (256 << (8 + drawShift)) - 1 );
+				dat[j*w+i] = (v >> (8 + drawShift));
+				if( v < wv ) {
+					wv = v;
+					wx = i;
+					wy = j;
+				}
+			}
+		}
+		if( smooth ) {
+			for( j = 0; j < h; ++ j ) {
+				for( i = 0; i < w; ++ i ) {
+					disp[((j*w+i)<<2)|3] = dat[j*w+i];
+				}
+			}
+		} else {
+			for( j = 0; j < dh; ++ j ) {
+				J = (((j*h)/dh)|0) * w;
+				for( i = 0; i < dw; ++ i ) {
+					disp[((j*dw+i)<<2)|3] = dat[J+(((i*w)/dw)|0)];
+				}
+			}
+		}
+		context.putImageData( data, 0, 0 );
+		for( i = 0; i < lights; ++ i ) {
+			marks[i].style.left = (pos[ i<<1   ] + 0.5) * dw / w;
+			marks[i].style.top  = (pos[(i<<1)|1] + 0.5) * dh / h;
+		}
+		worst.style.left = (wx + 0.5) * dw / w;
+		worst.style.top = (wy + 0.5) * dw / w;
+//		console.log( 'darkest: ' + (wv / (65535 * d2)) );
+	}
+	
+	function getMin( cut ) {
+		var
+		i,
+		j,
+		k, X, Y, xx, yy, W, H,
+		v = calc( wm, hm, 16777216 ),
+		v2 = calc( 0, hm, v ),
+		m = (v < v2) ? v : v2;
+		if( m <= cut ) {
+			return cut;
+		}
+		for( j = 0; j < hm; ++ j ) {
+			v = calc( 0, j, m );
+			v2 = calc( wm, j, m );
+			v = (v < v2) ? v : v2;
+			if( v < m ) {
+				if( v <= cut ) {
+					return cut;
+				}
+				m = v;
+			}
+		}
+		for( i = 1; i < wm; ++ i ) {
+			v = calc( i, 0, m );
+			v2 = calc( i, hm, m );
+			v = (v < v2) ? v : v2;
+			if( v < m ) {
+				if( v <= cut ) {
+					return cut;
+				}
+				m = v;
+			}
+		}
+		if( lights < 4 ) {
+			return m;
+		}
+		for( j = 1; j < hm; ++ j ) {
+			H = h2 - j;
+			for( i = 1; i < wm; ++ i ) {
+				v = 0;
+				W = w2 - i;
+				for( k = 0; k < lights; ++ k ) {
+					X = pos[ k<<1   ];
+					Y = pos[(k<<1)|1];
+					xx = i - X; yy = j - Y;
+					v += (v2 = cache1[xx*xx+yy*yy]);
+					if( v >= m ) {
+						if( v2 >= m && i < X ) {
+							i = X - xx;
+						}
+						break;
+					}
+					xx = i+X+1;             v += cache2[xx*xx+yy*yy];
+					xx = W - X;             v += cache2[xx*xx+yy*yy];
+					xx = i - X; yy = j+Y+1; v += cache2[xx*xx+yy*yy];
+					            yy = H - Y; v += cache2[xx*xx+yy*yy];
+					if( v >= m ) { break; }
+					xx = i+X+1; yy = j+Y+1; v += cache3[xx*xx+yy*yy];
+					xx = W - X;             v += cache3[xx*xx+yy*yy];
+					xx = i+X+1; yy = H - Y; v += cache3[xx*xx+yy*yy];
+					xx = W - X;             v += cache3[xx*xx+yy*yy];
+					if( v >= m ) { break; }
+				}
+				if( v < m ) {
+					if( v <= cut ) {
+						return cut;
+					}
+					m = v;
+				}
+			}
+		}
+		return m;
+	}
+	
+	function copy( to, from ) {
+		for( var i = 0; i < to.length; ++ i ) {
+			to[i] = from[i];
+		}
+	}
+	
+	function brute( ) {
+		var
+		posn = new Uint32Array( lights );
+		
+		function locate( n ) {
+			pos[ n<<1   ] = (posn[n] % w)|0;
+			pos[(n<<1)|1] = (posn[n] / w)|0;
+		}
+		
+		this.start = function( ) {
+			for( var i = 0; i < lights; ++ i ) {
+				posn[i] = i;
+				locate( i );
+			}
+			-- posn[lights-1];
+		}
+		this.next = function( f ) {
+			var j = lights - 1;
+			while( posn[j] === s + j - lights ) {
+				-- j;
+			}
+			++ posn[j];
+			if( j === 0 && posn[0] % w > w / 2 ) {
+				posn[0] = (((posn[0] / w)|0) + 1) * w;
+				if( posn[0] > s / 2 ) {
+					return false;
+				}
+			}
+			locate( j );
+			for( ++ j; j < lights; ++ j ) {
+				posn[j] = posn[j-1] + 1;
+				locate( j );
+			}
+			f( );
+			return true;
+		}
+	}
+	
+	function sym( vertical ) {
+		var
+		posn = new Uint32Array( lights ),
+		delta = new Int8Array( 9 * 2 );
+		delta[ 0] = 0; delta[ 1] = 0;
+		delta[ 2] =-1; delta[ 3] = 0;
+		delta[ 4] = 1; delta[ 5] = 0;
+		delta[ 6] = 0; delta[ 7] =-1;
+		delta[ 8] = 0; delta[ 9] = 1;
+		delta[10] =-1; delta[11] =-1;
+		delta[12] =-1; delta[13] = 1;
+		delta[14] = 1; delta[15] = 1;
+		delta[16] = 1; delta[17] =-1;
+		
+		var
+		ww = (vertical ? w : ((w + 1) / 2))|0,
+		ss = (vertical ? (w * (((h + 1) / 2)|0)) : (ww * h)),
+		stop = ww * (((h + 1) / 2)|0),
+		locate;
+		if( vertical ) {
+			locate = function( n ) {
+				var
+				x = (posn[n] % ww)|0,
+				y = (posn[n] / ww)|0,
+				x2 =      x + delta[ posn[lights-n-1]<<1   ],
+				y2 = hm - y + delta[(posn[lights-n-1]<<1)|1];
+				pos[ n<<1   ] = x;
+				pos[(n<<1)|1] = y;
+				pos[ (lights-n-1)<<1   ] = x2;
+				pos[((lights-n-1)<<1)|1] = y2;
+				return (x !== x2 || y !== y2) && x2 < w && y2 < h && x2 >= 0;
+			}
+		} else {
+			locate = function( n ) {
+				var
+				x = (posn[n] % ww)|0,
+				y = (posn[n] / ww)|0,
+				x2 = wm - x + delta[ posn[lights-n-1]<<1   ],
+				y2 =      y + delta[(posn[lights-n-1]<<1)|1];
+				pos[ n<<1   ] = x;
+				pos[(n<<1)|1] = y;
+				pos[ (lights-n-1)<<1   ] = x2;
+				pos[((lights-n-1)<<1)|1] = y2;
+				return (x !== x2 || y !== y2) && x2 < w && y2 < h && y2 >= 0;
+			}
+		}
+		
+		if( lights == 1 ) {
+			this.start = function( ) {
+				pos[ ll<<1   ] = ww - 1;
+				pos[(ll<<1)|1] = ((h + 1) / 2 - 1)|0;
+			}
+			this.next = function( f ) {
+				f( );
+				return false;
+			}
+		} else if( lights & 1 ) {
+			var ll = (lights / 2)|0;
+			this.start = function( ) {
+				var i;
+				for( i = ll; i < lights; ++ i ) {
+					posn[i] = 0;
+				}
+				for( i = 0; i < ll; ++ i ) {
+					posn[i] = i;
+					locate( i );
+				}
+				-- posn[ll-1];
+				pos[ ll<<1   ] = (w / 2)|0;
+				pos[(ll<<1)|1] = 0;
+			}
+			this.next = function( f ) {
+				while( true ) {
+					var j = lights - 1, ok = true;
+					while( j > ll && (++ posn[j]) === 9 ) {
+						posn[j] = 0;
+						-- j;
+					}
+					if( j === ll ) {
+						-- j;
+						while( posn[j] === ss + j - ll ) {
+							-- j;
+						}
+						++ posn[j];
+						if( j === 0 && posn[0] > stop ) {
+							posn[0] = 0;
+							if( ++ pos[(ll<<1)|1] >= h ) {
+								return false;
+							}
+						}
+						for( ++ j; j < ll; ++ j ) {
+							posn[j] = posn[j-1] + 1;
+						}
+					}
+					for( j = 0; j < ll; ++ j ) {
+						if( !locate( j ) ) {
+							ok = false;
+							break;
+						}
+					}
+					if( ok ) {
+						f( );
+						return true;
+					}
+				}
+			}
+		} else {
+			var ll = (lights / 2)|0;
+			this.start = function( ) {
+				var i;
+				for( i = ll; i < lights; ++ i ) {
+					posn[i] = 0;
+				}
+				for( i = 0; i < ll; ++ i ) {
+					posn[i] = i;
+					locate( i );
+				}
+				-- posn[ll-1];
+			}
+			this.next = function( f ) {
+				while( true ) {
+					var j = lights - 1, ok = true;
+					while( j >= ll && (++ posn[j]) === 9 ) {
+						posn[j] = 0;
+						-- j;
+					}
+					if( j === ll - 1 ) {
+						while( j !== 0 && posn[j] === ss + j - ll ) {
+							-- j;
+						}
+						++ posn[j];
+						if( vertical ) {
+							if( j === 0 && posn[0] % w > w / 2 ) {
+								posn[0] = (((posn[0] / w)|0) + 1) * w;
+								if( posn[0] > s / 2 ) {
+									return false;
+								}
+							}
+						} else if( j === 0 && posn[0] > stop ) {
+							return false;
+						}
+						for( ++ j; j < ll; ++ j ) {
+							posn[j] = posn[j-1] + 1;
+						}
+					}
+					for( j = 0; j < ll; ++ j ) {
+						if( !locate( j ) ) {
+							ok = false;
+							break;
+						}
+					}
+					if( ok ) {
+						f( );
+						return true;
+					}
+				}
+			}
+		}
+	}
+	
+	function solve( method ) {
+		var
+		bestMin = 0,
+		bestPos = new Uint16Array( lights * 2 );
+		
+		method.start( );
+		
+		function f( ) {
+			var m = getMin( bestMin );
+			if( m > bestMin ) {
+				copy( bestPos, pos );
+				bestMin = m;
+			}
+		}
+		
+		function update( ) {
+			for( var i = 0; i < 1000000; ++ i ) {
+				if( !method.next( f ) ) {
+					copy( pos, bestPos );
+					render( );
+					return;
+				}
+			}
+			render( );
+			setTimeout( update, 0 );
+		}
+		setTimeout( update, 0 );
+	}
+	
+//	solve( new brute( ) );
+	solve( new sym( lights === 6 ) );
+	
+//	pos[0] = ((w-1)*0.20)|0;
+//	pos[1] = ((h-1)*0.70)|0;
+//	pos[2] = ((w-1)*0.50)|0;
+//	pos[3] = ((h-1)*0.22)|0;
+//	pos[4] = ((w-1)*0.80)|0;
+//	pos[5] = ((h-1)*0.70)|0;
+//	render( );
+} );
+
+</script>
+</body>
+</html>
