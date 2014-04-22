@@ -1,7 +1,6 @@
 <html>
 <head>
 <script>
-var run = false;
 function makeAI( ) {
 	// Chrome doesn't set which when a key event is triggered, so that can't work,
 	// and touch events don't seem to be triggerable at all. Also since the instances
@@ -555,6 +554,18 @@ function makeAI( ) {
 	document.body.appendChild( btnAuto );
 }
 
+function parseSource( source ) {
+	'strict mode';
+	
+	var parser = new DOMParser( );
+	var doc = parser.parseFromString( source, 'text/html' );
+	window.test = doc;
+	
+//	document.body.innerHTML = loader.responseText;
+//	setTimeout( makeAI, 0 );
+}
+
+var run = false;
 // hackey function to load the 2048 game direct from the source
 window.addEventListener( 'load', function( ) {
 	'strict mode';
@@ -567,10 +578,10 @@ window.addEventListener( 'load', function( ) {
 	var loader = new XMLHttpRequest( );
 	loader.onreadystatechange = function( ) {
 		if( loader.readyState === 4 ) {
-			console && console.log( loader );
 			if( loader.status === 200 ) {
-				document.write( loader.responseText ); // replace all content
-				setTimeout( makeAI, 0 );
+				parseSource( loader.responseText );
+			} else {
+				console && console.log( loader );
 			}
 		}
 	}
