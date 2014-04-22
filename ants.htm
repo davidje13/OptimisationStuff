@@ -1,0 +1,397 @@
+<html>
+<head>
+<style>
+body{
+	background:#666666;
+	margin:0;
+	padding:0;
+}
+.container{
+	position:relative;
+	margin:100px auto 10px;
+	border:2px solid #000000;
+	background:#663322;
+	box-shadow:0 4px 20px rgba(0,0,0,0.5);
+	cursor:pointer;
+}
+.info{
+	margin:10px auto 10px;
+	width:200px;
+	padding:10px;
+	background:#333333;
+	border-radius:5px;
+	color:#CCCCCC;
+	font:1.2em sans-serif;
+}
+</style>
+</head>
+<body>
+<script>
+
+var runonce = false;
+window.addEventListener( 'load', function( ) {
+	'use strict';
+	
+	if( runonce ) {
+		return;
+	}
+	runonce = true;
+	
+	var
+	w = 600,
+	h = 500,
+	displayScale = 1,
+	vision = 5,
+	speed = 0.5,
+	turnSpeed = 0.1,
+	turnVariance = 0.05,
+	minAnts = 4,
+	maxAnts = 400,
+	
+	pi = Math.PI,
+	dw = w * displayScale,
+	dh = h * displayScale,
+	container = document.createElement( 'div' ),
+	info = document.createElement( 'div' ),
+	infoNum = document.createElement( 'span' ),
+	canvas = document.createElement( 'canvas' );
+	canvas.setAttribute( 'width', w );
+	canvas.setAttribute( 'height', h );
+	container.style.width = canvas.style.width = dw + 'px';
+	container.style.height = canvas.style.height = dh + 'px';
+	container.className = 'container';
+	container.appendChild( canvas );
+	document.body.appendChild( container );
+	info.className = 'info';
+	info.appendChild( document.createTextNode( 'Ants: ' ) );
+	info.appendChild( infoNum );
+	document.body.appendChild( info );
+	
+	var
+	context = canvas.getContext( '2d' ),
+	data = context.createImageData( w, h ),
+	disp = data.data,
+	walls = new Uint8Array( w * h ),
+	phNest = new Uint16Array( w * h ),
+	phFood = new Uint16Array( w * h ),
+	food = new Uint8ClampedArray( w * h ),
+	nest = {
+		x: (w / 2)|0,
+		y: (h / 2)|0,
+		r: 4,
+		f: 0
+	},
+	ants = [];
+	for( var i = 0; i < 40; ++ i ) {
+		ants.push( {
+			x: nest.x,
+			y: nest.y,
+			a: Math.random( ) * pi * 2,
+			f: 0,
+			life: 10000,
+			phFood: 0,
+			phNest: 0
+		} );
+	}
+	
+	function render( ) {
+		var
+		i, j,
+		x, y,
+		xx, yy;
+		
+		for( j = 0; j < h; ++ j ) {
+			for( i = 0; i < w; ++ i ) {
+				xx = 0xFF - walls[j*w+i];
+				disp[ (j*w+i)<<2   ] = 0xFF - (((0xFF - (((phNest[j*w+i] * (0xFF - 0xBB)) >> 16) + 0xBB)) * xx) >> 8);
+				disp[((j*w+i)<<2)|1] = 0xFF - (((0xFF - (((phFood[j*w+i] * (0xFF - 0x99)) >> 16) + 0x99)) * xx) >> 8);
+				disp[((j*w+i)<<2)|2] = 0xFF - (((0xFF - 0x66) * xx) >> 8);
+				disp[((j*w+i)<<2)|3] = 0xFF - ((food[j*w+i] * xx) >> 8);
+			}
+		}
+		context.putImageData( data, 0, 0 );
+		context.beginPath( );
+		for( i = 0; i < ants.length; ++ i ) {
+			x = ants[i].x;
+			y = ants[i].y;
+			xx = Math.sin( ants[i].a ) * 1;
+			yy = Math.cos( ants[i].a ) * 1;
+			context.moveTo( x - xx, y - yy );
+			context.lineTo( x + xx, y + yy );
+		}
+		context.stroke( );
+		infoNum.innerText = ants.length;
+	}
+	
+	function mark( tgt, i, v ) {
+		if( v > tgt[i] ) {
+			tgt[i] = (v > 65535) ? 65535 : v;
+		}
+	}
+	function markNeg( tgt, i, v ) {
+		if( v < tgt[i] ) {
+			tgt[i] = (v < 0) ? 0 : v;
+		}
+	}
+	function ph( tgt, x, y, v ) {
+		var
+		xx = x|0,
+		yy = y|0,
+		i, j, d;
+		for( i = xx - 5; i < xx + 5; ++ i ) {
+			for( j = yy - 5; j < yy + 5; ++ j ) {
+				if( i >= 0 && j >= 0 && i < w && j < h ) {
+					d = 1 - Math.sqrt( (i - xx) * (i - xx) + (j - yy) * (j - yy) ) / 5;
+					mark( tgt, j * w + i, (v * d)|0 );
+				}
+			}
+		}
+	}
+	function circleNeg( tgt, x, y, r, v ) {
+		var
+		xx = x|0,
+		yy = y|0,
+		i, j, d;
+		for( i = xx - r; i < xx + r; ++ i ) {
+			for( j = yy - r; j < yy + r; ++ j ) {
+				if( i >= 0 && j >= 0 && i < w && j < h ) {
+					d = Math.sqrt( (i - xx) * (i - xx) + (j - yy) * (j - yy) ) + 1 - r;
+					markNeg( tgt, j * w + i, (v * ((d < 1) ? d : 1))|0 );
+				}
+			}
+		}
+	}
+	function circle( tgt, x, y, r, v ) {
+		var
+		xx = x|0,
+		yy = y|0,
+		i, j, d;
+		for( i = xx - r; i < xx + r; ++ i ) {
+			for( j = yy - r; j < yy + r; ++ j ) {
+				if( i >= 0 && j >= 0 && i < w && j < h ) {
+					d = r - Math.sqrt( (i - xx) * (i - xx) + (j - yy) * (j - yy) );
+					mark( tgt, j * w + i, (v * ((d < 1) ? d : 1))|0 );
+				}
+			}
+		}
+	}
+	function markSub( tgt, i, v ) {
+		if( v > 0 ) {
+			tgt[i] = ((tgt[i] > v + 1024) ? (tgt[i] - v) : 0);
+		}
+	}
+	function phSub( tgt, x, y, v ) {
+		var
+		xx = x|0,
+		yy = y|0,
+		i, j, d;
+		for( i = xx - 5; i < xx + 5; ++ i ) {
+			for( j = yy - 5; j < yy + 5; ++ j ) {
+				if( i >= 0 && j >= 0 && i < w && j < h ) {
+					d = 4 - Math.sqrt( (i - xx) * (i - xx) + (j - yy) * (j - yy) ) * 0.2;
+					markSub( tgt, j * w + i, (v * ((d > 1) ? 1 : d))|0 );
+				}
+			}
+		}
+	}
+	function seek( o, aim ) {
+		var
+		i,
+		a,
+		x, y,
+		barrier = 0,
+		mxa = 0, mia = 0;
+		for( i = -30; i <= 30; ++ i ) {
+			if( !i ) {
+				continue;
+			}
+			a = o.a + i * 0.025 * pi;
+			x = (o.x + Math.sin( a ) * vision)|0;
+			y = (o.y + Math.cos( a ) * vision)|0;
+			if( x < 0 || y < 0 || x >= w || y >= h || walls[y*w+x] >= 128 ) {
+				barrier += i;
+				mxa = 65536;
+			} else {
+				if( aim[y*w+x] > mxa ) {
+					mia = i;
+					mxa = aim[y*w+x];
+				}
+			}
+		}
+		if( mxa === 65536 ) {
+			// saw barrier
+			if( barrier >= 0 ) {
+				o.a -= turnSpeed;
+			} else {
+				o.a += turnSpeed;
+			}
+		} else if( mia > 10 ) {
+			o.a += turnSpeed;
+		} else if( mia > 0 ) {
+			o.a += turnSpeed * 0.5;
+		} else if( mia < -10 ) {
+			o.a -= turnSpeed;
+		} else if( mia < 0 ) {
+			o.a -= turnSpeed * 0.5;
+		}
+		o.a += (Math.random( ) - 0.5) * turnVariance * 2;
+	}
+	
+	var n = 100000.0;
+	var n3 = 0;
+	function step( ) {
+		var
+		i, j, o, v, d,
+		xx, yy,
+		ox, oy,
+		f3 = (++ n3) > 2;
+		if( f3 ) {
+			n3 = 0;
+			for( var i = 0; i < w * h; ++ i ) {
+				phFood[i] = (phFood[i] >= 64 ? (phFood[i] - 64) : 0);
+				if( (food[i] << 10) > phFood[i] ) {
+					phFood[i] = ((food[i] << 10) > 65535 ? 65535 : (food[i] << 10));
+				}
+				phNest[i] = (phNest[i] >= 8 ? (phNest[i] - 8) : 0);
+			}
+		}
+		for( i = 0; i < ants.length; ++ i ) {
+			o = ants[i];
+			d = ((o.life <= 0) ? (speed * 0.2) : speed);
+			xx = Math.sin( o.a ) * d;
+			yy = Math.cos( o.a ) * d;
+			ox = o.x,
+			oy = o.y,
+			j = (oy|0) * w + (ox|0);
+			o.x += xx;
+			o.y += yy;
+			if( phNest[j] > o.phNest + 1024 ) {
+				o.phNest = phNest[j] - 1024;
+			}
+			if( phFood[j] > o.phFood + 1024 ) {
+				o.phFood = phFood[j] - 1024;
+			}
+			o.phNest -= 32;
+			o.phFood -= 64;
+			if( o.phNest < 0 ) { o.phNest = 0; }
+			if( o.phFood < 0 ) { o.phFood = 0; }
+			if( o.x < 0 ) { o.x = 0; o.a += pi * 0.3; }
+			if( o.y < 0 ) { o.y = 0; o.a += pi * 0.3; }
+			if( o.x > w - 1 ) { o.x = w - 1; o.a += pi * 0.3; }
+			if( o.y > h - 1 ) { o.y = h - 1; o.a += pi * 0.3; }
+			if( walls[(o.y|0)*w+(o.x|0)] >= 128 && walls[j] < 128 ) {
+				o.x = ox;
+				o.y = oy;
+				o.a += pi * 0.3;
+			}
+			v = food[j];
+			v = (v < (64 - o.f)) ? v : (64 - o.f);
+			o.life += v * 15 - 1;
+//			if( o.life <= 0 ) {
+//				ants.splice( i, 1 );
+//				-- i;
+//				continue;
+//			}
+			food[j] -= v;
+			o.f += v;
+			o.phFood = ((o.phFood + v * 256) > 65535) ? 65535 : (o.phFood + v * 256);
+			if( (o.x - nest.x) * (o.x - nest.x) + (o.y - nest.y) * (o.y - nest.y) < nest.r * nest.r ) {
+				nest.f += o.f;
+				o.f = 0;
+				o.phNest = 65535;
+//				o.phFood = 0;
+				if( o.life < 5000 ) {
+					nest.f += 32;
+					ants.splice( i, 1 );
+					-- i;
+					continue;
+				}
+			}
+			if( o.f < 32 && o.life >= 5000 && o.phNest > 4096 ) {
+				seek( o, phFood );
+				phSub( phFood, o.x - xx * 2, o.y - yy * 2, 16 );
+			} else {
+				seek( o, phNest );
+			}
+			ph( phNest, o.x, o.y, o.phNest );
+			ph( phFood, o.x, o.y, o.phFood );
+		}
+		if( ants.length < minAnts || (ants.length < maxAnts && nest.f > 128) ) {
+			nest.f -= 128;
+			if( nest.f < 0 ) {
+				nest.f = 0;
+			}
+			ants.push( {
+				x: nest.x,
+				y: nest.y,
+				a: Math.random( ) * pi * 2,
+				f: 0,
+				life: 10000,
+				phFood: 0,
+				phNest: 0
+			} );
+		}
+		n += speed;
+		if( n > 5000 ) {
+			xx = (Math.random( ) * (w - 40))|0 + 20;
+			yy = (Math.random( ) * (h - 40))|0 + 20;
+			for( i = xx - 15; i < xx + 15; ++ i ) {
+				for( j = yy - 15; j < yy + 15; ++ j ) {
+					if( i >= 0 && i < w && j >= 0 && j < w ) {
+						d = 2 - Math.sqrt( (i - xx) * (i - xx) + (j - yy) * (j - yy) ) * 0.15;
+						if( d > 0 ) {
+							food[j*w+i] += ((d < 1) ? d : 1) * 255;
+						}
+					}
+				}
+			}
+			n = 0;
+		}
+	}
+	
+	canvas.addEventListener( 'contextmenu', function( e ) {
+		e.preventDefault( );
+	} );
+	canvas.addEventListener( 'mousedown', function( e ) {
+		drawWall( e );
+		window.addEventListener( 'mousemove', drawWall );
+		window.addEventListener( 'mouseup', stopWall );
+	} );
+	
+	function drawWall( e ) {
+		e.preventDefault( );
+		var
+		x = e.pageX,
+		y = e.pageY,
+		o = canvas;
+		while( o && o.offsetLeft !== undefined ) {
+			x -= o.offsetLeft;
+			y -= o.offsetTop;
+			o = o.parentNode;
+		}
+		
+		if( e.button === 2 ) {
+			circleNeg( walls, x, y, 10, 255 );
+		} else {
+			circle( walls, x, y, 10, 255 );
+		}
+	}
+	function stopWall( e ) {
+		drawWall( e );
+		window.removeEventListener( 'mousemove', drawWall );
+		window.removeEventListener( 'mouseup', stopWall );
+	}
+	
+	function update( ) {
+		for( var i = 0; i < 10; ++ i ) {
+			step( );
+		}
+		render( );
+		setTimeout( update, 0 );
+	}
+	update( );
+} );
+
+</script>
+</body>
+</html>
