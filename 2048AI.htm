@@ -574,7 +574,9 @@ window.addEventListener( 'load', function( ) {
 			}
 		}
 	}
-	loader.open( 'GET', '/?https://github.com/gabrielecirulli/2048/blob/master/index.html', true );
+	var root = document.location.href;
+	root = root.substr( 0, root.indexOf( '/?' ) + 2 );
+	loader.open( 'GET', root + 'https://github.com/gabrielecirulli/2048/blob/master/index.html', true );
 	loader.send( );
 } );
 </script>
