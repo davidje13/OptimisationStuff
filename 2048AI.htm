@@ -554,19 +554,8 @@ function makeAI( ) {
 	document.body.appendChild( btnAuto );
 }
 
-function parseSource( source ) {
-	'strict mode';
-	
-	var parser = new DOMParser( );
-	var doc = parser.parseFromString( source, 'text/html' );
-	window.test = doc;
-	
-//	document.body.innerHTML = loader.responseText;
-//	setTimeout( makeAI, 0 );
-}
-
 var run = false;
-// hackey function to load the 2048 game direct from the source
+// Use github.io's own functions to load 2048 direct from the source!
 window.addEventListener( 'load', function( ) {
 	'strict mode';
 	
@@ -575,20 +564,9 @@ window.addEventListener( 'load', function( ) {
 	}
 	run = true;
 	
-	var loader = new XMLHttpRequest( );
-	loader.onreadystatechange = function( ) {
-		if( loader.readyState === 4 ) {
-			if( loader.status === 200 ) {
-				parseSource( loader.responseText );
-			} else {
-				console && console.log( loader );
-			}
-		}
-	}
-	var root = document.location.href;
-	root = root.substr( 0, root.indexOf( '/?' ) + 2 );
-	loader.open( 'GET', root + 'https://github.com/gabrielecirulli/2048/blob/master/index.html', true );
-	loader.send( );
+	HTMLPreview.send( 'https://raw.github.com/gabrielecirulli/2048/master/index.html', 'loadHTML' );
+	
+	setTimeout( makeAI, 5000 );
 } );
 </script>
 </head>
