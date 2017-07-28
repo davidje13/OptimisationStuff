@@ -339,7 +339,9 @@ function makeAI( ) {
 	realEmit = KeyboardInputManager.prototype.emit,
 	autorun,
 	nextrun,
-	hadwon = false;
+	hadwon = false,
+	defaultLookahead = 6,
+	defaultMinTime = 20;
 	KeyboardInputManager.prototype.emit = function( ) {
 		target = this;
 		KeyboardInputManager.prototype.emit = realEmit;
@@ -410,13 +412,13 @@ function makeAI( ) {
 	}
 	
 	function play( lookahead, minTime, call ) {
-		lookahead = (lookahead | 0) || 6;
+		lookahead = (lookahead | 0) || defaultLookahead;
 		if( lookahead < 2 ) {
 			lookahead = 2;
 		}
 		var
 		l = lookahead + 1,
-		limit = Date.now( ) + (minTime || 20),
+		limit = Date.now( ) + (minTime || defaultMinTime),
 		grid = new Uint16Array( 4 ),
 		scores;
 		function go( ) {
@@ -552,6 +554,40 @@ function makeAI( ) {
 		autoplay( );
 	} );
 	document.body.appendChild( btnAuto );
+	
+	var baseLookahead = document.createElement( 'label' );
+	baseLookahead.style.position = 'fixed';
+	baseLookahead.style.top = '35px';
+	baseLookahead.style.left = '5px';
+	baseLookahead.style.zIndex = '999999';
+	var txtBaseLookahead = document.createElement( 'input' );
+	txtBaseLookahead.value = defaultLookahead;
+	txtBaseLookahead.addEventListener( 'change', function( ) {
+		var value = txtBaseLookahead.value|0;
+		if( value + '' === txtBaseLookahead.value ) {
+			defaultLookahead = value;
+		}
+	} );
+	baseLookahead.appendChild( document.createTextNode( 'Minimum lookahead: ' ) );
+	baseLookahead.appendChild( txtBaseLookahead );
+	document.body.appendChild( baseLookahead );
+	
+	var minTurnTime = document.createElement( 'label' );
+	minTurnTime.style.position = 'fixed';
+	minTurnTime.style.top = '65px';
+	minTurnTime.style.left = '5px';
+	minTurnTime.style.zIndex = '999999';
+	var txtMinTurnTime = document.createElement( 'input' );
+	txtMinTurnTime.value = defaultMinTime;
+	txtMinTurnTime.addEventListener( 'change', function( ) {
+		var value = txtMinTurnTime.value|0;
+		if( value + '' === txtMinTurnTime.value ) {
+			defaultMinTime = value;
+		}
+	} );
+	minTurnTime.appendChild( document.createTextNode( 'Minimum turn time: ' ) );
+	minTurnTime.appendChild( txtMinTurnTime );
+	document.body.appendChild( minTurnTime );
 }
 
 var run = false;
