@@ -557,10 +557,13 @@ function makeAI( ) {
 	
 	var baseLookahead = document.createElement( 'label' );
 	baseLookahead.style.position = 'fixed';
-	baseLookahead.style.top = '35px';
+	baseLookahead.style.top = '30px';
 	baseLookahead.style.left = '5px';
 	baseLookahead.style.zIndex = '999999';
+	baseLookahead.style.fontSize = '0.8em';
 	var txtBaseLookahead = document.createElement( 'input' );
+	txtBaseLookahead.setAttribute('type', 'number');
+	txtBaseLookahead.setAttribute('min', '2');
 	txtBaseLookahead.value = defaultLookahead;
 	txtBaseLookahead.addEventListener( 'change', function( ) {
 		var value = txtBaseLookahead.value|0;
@@ -574,10 +577,13 @@ function makeAI( ) {
 	
 	var minTurnTime = document.createElement( 'label' );
 	minTurnTime.style.position = 'fixed';
-	minTurnTime.style.top = '65px';
+	minTurnTime.style.top = '55px';
 	minTurnTime.style.left = '5px';
 	minTurnTime.style.zIndex = '999999';
+	minTurnTime.style.fontSize = '0.8em';
 	var txtMinTurnTime = document.createElement( 'input' );
+	txtMinTurnTime.setAttribute('type', 'number');
+	txtMinTurnTime.setAttribute('min', '0');
 	txtMinTurnTime.value = defaultMinTime;
 	txtMinTurnTime.addEventListener( 'change', function( ) {
 		var value = txtMinTurnTime.value|0;
@@ -587,6 +593,7 @@ function makeAI( ) {
 	} );
 	minTurnTime.appendChild( document.createTextNode( 'Minimum turn time: ' ) );
 	minTurnTime.appendChild( txtMinTurnTime );
+	minTurnTime.appendChild( document.createTextNode( 'ms' ) );
 	document.body.appendChild( minTurnTime );
 }
 
