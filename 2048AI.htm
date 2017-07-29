@@ -1,7 +1,9 @@
 <html>
 <head>
 <script>
-function makeAI( ) {
+function make_ai( ) {
+	'use strict';
+	
 	// Chrome doesn't set which when a key event is triggered, so that can't work,
 	// and touch events don't seem to be triggerable at all. Also since the instances
 	// of 2048 are all private, the only way to get one is by this nasty hack. Turns out
@@ -549,9 +551,7 @@ function makeAI( ) {
 
 		var btnAuto = document.createElement( 'button' );
 		btnAuto.appendChild( document.createTextNode( 'Play Automatically' ) );
-		btnAuto.addEventListener( 'click', function( ) {
-			autoplay( );
-		} );
+		btnAuto.addEventListener( 'click', () => autoplay( ) );
 		container.appendChild( btnAuto );
 		
 		var baseLookahead = document.createElement( 'label' );
@@ -559,7 +559,7 @@ function makeAI( ) {
 		txtBaseLookahead.setAttribute('type', 'number');
 		txtBaseLookahead.setAttribute('min', '2');
 		txtBaseLookahead.value = defaultLookahead;
-		txtBaseLookahead.addEventListener( 'change', function( ) {
+		txtBaseLookahead.addEventListener( 'change', () => {
 			var value = txtBaseLookahead.value|0;
 			if( value + '' === txtBaseLookahead.value ) {
 				defaultLookahead = value;
@@ -575,7 +575,7 @@ function makeAI( ) {
 		txtMinTurnTime.setAttribute('type', 'number');
 		txtMinTurnTime.setAttribute('min', '0');
 		txtMinTurnTime.value = defaultMinTime;
-		txtMinTurnTime.addEventListener( 'change', function( ) {
+		txtMinTurnTime.addEventListener( 'change', () => {
 			var value = txtMinTurnTime.value|0;
 			if( value + '' === txtMinTurnTime.value ) {
 				defaultMinTime = value;
@@ -596,25 +596,22 @@ function makeAI( ) {
 	document.body.appendChild( build_ui( ) );
 }
 
-var run = false;
 // Use github.io's own functions to load 2048 direct from the source!
-window.addEventListener( 'load', function( ) {
-	'strict mode';
+window.addEventListener( 'load', () => {
+	'use strict';
 	
-	if( run ) {
-		return;
-	}
-	run = true;
+	var loadingAI = window.setInterval( () => {
+		if( document.getElementsByClassName( 'game-container' ).length > 0 ) {
+			window.clearInterval( loadingAI );
+			make_ai( );
+		}
+	}, 100 );
 	
-	var baseSource = 'https://raw.githubusercontent.com/gabrielecirulli/2048/6141e302b7860c920a9ab4b85ff39d6404214e9b/index.html';
-	HTMLPreview.file = function() {
-		return baseSource;
-	};
-	
-	HTMLPreview.send( baseSource, 'loadHTML' );
-	
-	setTimeout( makeAI, 5000 );
-} );
+	HTMLPreview.file = () =>
+		'https://raw.githubusercontent.com/gabrielecirulli/2048/6141e302b7860c920a9ab4b85ff39d6404214e9b/index.html';
+	HTMLPreview.send( HTMLPreview.file( ), 'loadHTML' );
+}, {once: true} );
+
 </script>
 </head>
 <body>
