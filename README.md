@@ -2,6 +2,8 @@
 
 ## 2048 AI
 
+<img src="2048.png" alt="2048 AI game result" width="200" align="right" />
+
 https://htmlpreview.github.io/?https://github.com/davidje13/OptimisationStuff/blob/master/2048AI.htm
 
 This plays an automated game of 2048.
