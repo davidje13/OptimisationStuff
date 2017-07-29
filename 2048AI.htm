@@ -607,7 +607,7 @@ window.addEventListener( 'load', () => {
 	'use strict';
 	
 	var loadingAI = window.setInterval( () => {
-		if( window.KeyboardInputManager !== undefined ) {
+		if( window.KeyboardInputManager !== undefined && window.HTMLActuator !== undefined ) {
 			window.clearInterval( loadingAI );
 			make_ai( );
 		}
