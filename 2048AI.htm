@@ -309,6 +309,7 @@ function makeAI( ) {
 		return (best === -1.0) ? scoreEnd( scenario.grid, N ) : best; \n\
 	} \n\
 	var moves = { 'up': moveY, 'down': moveY, 'left': moveX, 'right': moveX }; \n\
+	var moveFlags = { 'up': 0, 'down': 1, 'left': 0, 'right': 1 }; \n\
 	var globGrid = null; \n\
 	var globCache = null; \n\
 	self.onmessage = function( e ) { \n\
@@ -324,7 +325,7 @@ function makeAI( ) {
 		grid = globGrid; \n\
 		cache = globCache; \n\
 		grid.set( e.data.grid ); \n\
-		if( !moves[dir]( grid, 0, dir === 'right' || dir === 'down' ) ) { \n\
+		if( !moves[dir]( grid, 0, moveFlags[dir] ) ) { \n\
 			self.postMessage( { dir: dir, score: -1 } ); \n\
 			return; \n\
 		} \n\
@@ -335,15 +336,14 @@ function makeAI( ) {
 		for( var i = 0; i < hMap.length; ++ i ) { \n\
 			hMap[i] = 0; \n\
 		} \n\
-		moves[dir]( grid, 0, dir === 'right' || dir === 'down' ); \n\
+		moves[dir]( grid, 0, moveFlags[dir] ); \n\
 		self.postMessage( { dir: dir, score: simulate( {grid: grid, cache: cache, limit: 4 * l}, 4, 0 ) } ); \n\
 	} \n\
 	"], { type: 'text/javascript' } ),
+	directions = ['up', 'down', 'left', 'right'],
+	directionCodes = {'up': 0, 'right': 1, 'down': 2, 'left': 3},
 	thinkingURL = window.URL.createObjectURL( thinkingCode ),
-	workerUp    = new Worker( thinkingURL ),
-	workerLeft  = new Worker( thinkingURL ),
-	workerRight = new Worker( thinkingURL ),
-	workerDown  = new Worker( thinkingURL ),
+	workers = [],
 	source,
 	target,
 	realEmit = KeyboardInputManager.prototype.emit,
@@ -352,6 +352,9 @@ function makeAI( ) {
 	hadwon = false,
 	defaultLookahead = 6,
 	defaultMinTime = 20;
+	for( var i = 0; i < directions.length; ++ i ) {
+		workers.push(new Worker( thinkingURL ));
+	}
 	KeyboardInputManager.prototype.emit = function( ) {
 		target = this;
 		KeyboardInputManager.prototype.emit = realEmit;
@@ -377,12 +380,7 @@ function makeAI( ) {
 		if( dir === 'continue' ) {
 			target.emit( 'keepPlaying' );
 		} else {
-			target.emit( 'move', {
-				'up': 0,
-				'right': 1,
-				'down': 2,
-				'left': 3
-			}[dir] );
+			target.emit( 'move', directionCodes[dir] );
 		}
 	}
 	
@@ -430,43 +428,30 @@ function makeAI( ) {
 		l = lookahead + 1,
 		limit = Date.now( ) + (minTime || defaultMinTime),
 		grid = new Uint16Array( 4 ),
-		scores;
+		scores = {};
 		function go( ) {
-			scores = {
-				'up': undefined,
-				'down': undefined,
-				'left': undefined,
-				'right': undefined
-			};
-			workerUp.postMessage( { dir: 'up', grid: grid, l: l } );
-			workerDown.postMessage( { dir: 'down', grid: grid, l: l } );
-			workerLeft.postMessage( { dir: 'left', grid: grid, l: l } );
-			workerRight.postMessage( { dir: 'right', grid: grid, l: l } );
+			for( var i = 0; i < directions.length; ++ i ) {
+				scores[directions[i]] = undefined;
+			}
+			for( var i = 0; i < directions.length; ++ i ) {
+				workers[i].postMessage( { dir: directions[i], grid: grid, l: l } );
+			}
 		}
 		read( grid );
-		workerUp.onmessage =
-		workerDown.onmessage =
-		workerLeft.onmessage =
-		workerRight.onmessage =
-		function( e ) {
+		var onmessage = function( e ) {
 			scores[e.data.dir] = e.data.score;
-			if( scores.up === undefined || scores.down === undefined || scores.left === undefined || scores.right === undefined ) {
-				return;
-			}
 			var
-			best = scores.up,
-			dir = 'up';
-			if( scores.down > best ) {
-				best = scores.down;
-				dir = 'down';
-			}
-			if( scores.left > best ) {
-				best = scores.left;
-				dir = 'left';
-			}
-			if( scores.right > best ) {
-				best = scores.right;
-				dir = 'right';
+			best = -1,
+			dir = directions[0];
+			for( var i = 0; i < directions.length; ++ i ) {
+				var sc = scores[directions[i]];
+				if( sc === undefined ) {
+					return;
+				}
+				if( sc > best ) {
+					best = sc;
+					dir = directions[i];
+				}
 			}
 			if( best === -1 ) {
 				call( '', l - 1 );
@@ -476,6 +461,9 @@ function makeAI( ) {
 			} else {
 				call( dir, l - 1 );
 			}
+		}
+		for( var i = 0; i < workers.length; ++ i ) {
+			workers[i].onmessage = onmessage;
 		}
 		go( );
 	}
@@ -551,60 +539,61 @@ function makeAI( ) {
 		}
 	}
 	
+	function build_ui( ) {
+		var container = document.createElement( 'div' );
+		container.style.position = 'fixed';
+		container.style.top = '5px';
+		container.style.left = '5px';
+		container.style.zIndex = '999999';
+		container.style.fontSize = '0.8em';
+
+		var btnAuto = document.createElement( 'button' );
+		btnAuto.appendChild( document.createTextNode( 'Play Automatically' ) );
+		btnAuto.addEventListener( 'click', function( ) {
+			autoplay( );
+		} );
+		container.appendChild( btnAuto );
+		
+		var baseLookahead = document.createElement( 'label' );
+		var txtBaseLookahead = document.createElement( 'input' );
+		txtBaseLookahead.setAttribute('type', 'number');
+		txtBaseLookahead.setAttribute('min', '2');
+		txtBaseLookahead.value = defaultLookahead;
+		txtBaseLookahead.addEventListener( 'change', function( ) {
+			var value = txtBaseLookahead.value|0;
+			if( value + '' === txtBaseLookahead.value ) {
+				defaultLookahead = value;
+			}
+		} );
+		baseLookahead.appendChild( document.createTextNode( 'Minimum lookahead: ' ) );
+		baseLookahead.appendChild( txtBaseLookahead );
+		container.appendChild( document.createElement( 'br' ) );
+		container.appendChild( baseLookahead );
+		
+		var minTurnTime = document.createElement( 'label' );
+		var txtMinTurnTime = document.createElement( 'input' );
+		txtMinTurnTime.setAttribute('type', 'number');
+		txtMinTurnTime.setAttribute('min', '0');
+		txtMinTurnTime.value = defaultMinTime;
+		txtMinTurnTime.addEventListener( 'change', function( ) {
+			var value = txtMinTurnTime.value|0;
+			if( value + '' === txtMinTurnTime.value ) {
+				defaultMinTime = value;
+			}
+		} );
+		minTurnTime.appendChild( document.createTextNode( 'Minimum turn time: ' ) );
+		minTurnTime.appendChild( txtMinTurnTime );
+		minTurnTime.appendChild( document.createTextNode( 'ms' ) );
+		container.appendChild( document.createElement( 'br' ) );
+		container.appendChild( minTurnTime );
+		
+		return container;
+	}
+	
 	window.autoplay = autoplay;
 	window.test = test;
 	
-	var btnAuto = document.createElement( 'button' );
-	btnAuto.appendChild( document.createTextNode( 'Play Automatically' ) );
-	btnAuto.style.position = 'fixed';
-	btnAuto.style.top = '5px';
-	btnAuto.style.left = '5px';
-	btnAuto.style.zIndex = '999999';
-	btnAuto.addEventListener( 'click', function( ) {
-		autoplay( );
-	} );
-	document.body.appendChild( btnAuto );
-	
-	var baseLookahead = document.createElement( 'label' );
-	baseLookahead.style.position = 'fixed';
-	baseLookahead.style.top = '30px';
-	baseLookahead.style.left = '5px';
-	baseLookahead.style.zIndex = '999999';
-	baseLookahead.style.fontSize = '0.8em';
-	var txtBaseLookahead = document.createElement( 'input' );
-	txtBaseLookahead.setAttribute('type', 'number');
-	txtBaseLookahead.setAttribute('min', '2');
-	txtBaseLookahead.value = defaultLookahead;
-	txtBaseLookahead.addEventListener( 'change', function( ) {
-		var value = txtBaseLookahead.value|0;
-		if( value + '' === txtBaseLookahead.value ) {
-			defaultLookahead = value;
-		}
-	} );
-	baseLookahead.appendChild( document.createTextNode( 'Minimum lookahead: ' ) );
-	baseLookahead.appendChild( txtBaseLookahead );
-	document.body.appendChild( baseLookahead );
-	
-	var minTurnTime = document.createElement( 'label' );
-	minTurnTime.style.position = 'fixed';
-	minTurnTime.style.top = '55px';
-	minTurnTime.style.left = '5px';
-	minTurnTime.style.zIndex = '999999';
-	minTurnTime.style.fontSize = '0.8em';
-	var txtMinTurnTime = document.createElement( 'input' );
-	txtMinTurnTime.setAttribute('type', 'number');
-	txtMinTurnTime.setAttribute('min', '0');
-	txtMinTurnTime.value = defaultMinTime;
-	txtMinTurnTime.addEventListener( 'change', function( ) {
-		var value = txtMinTurnTime.value|0;
-		if( value + '' === txtMinTurnTime.value ) {
-			defaultMinTime = value;
-		}
-	} );
-	minTurnTime.appendChild( document.createTextNode( 'Minimum turn time: ' ) );
-	minTurnTime.appendChild( txtMinTurnTime );
-	minTurnTime.appendChild( document.createTextNode( 'ms' ) );
-	document.body.appendChild( minTurnTime );
+	document.body.appendChild( build_ui( ) );
 }
 
 var run = false;
