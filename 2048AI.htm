@@ -601,7 +601,7 @@ window.addEventListener( 'load', () => {
 	'use strict';
 	
 	var loadingAI = window.setInterval( () => {
-		if( document.getElementsByClassName( 'game-container' ).length > 0 ) {
+		if( window.KeyboardInputManager !== undefined ) {
 			window.clearInterval( loadingAI );
 			make_ai( );
 		}
