@@ -526,7 +526,7 @@ function make_ai( ) {
 	function build_ui( ) {
 		return make_element( 'div', {
 			style: 'position: fixed; top: 5px; left: 5px; zIndex: 999999; font-size: 0.8em;'
-		}, [
+		}, {}, [
 			make_element( 'button', {}, {'click': autoplay}, ['Play Automatically'] ),
 			make_element( 'br' ),
 			make_element( 'label', {}, {}, [
