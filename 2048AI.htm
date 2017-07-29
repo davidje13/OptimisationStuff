@@ -127,14 +127,16 @@ function makeAI( ) {
 		} \n\
 		return best * 10; \n\
 	} \n\
-	function simulate( grid, cache, N, lowp ) { \n\
-		if( grid.length === N + 4 || lowp === 3 ) { \n\
-			return score( grid, N ); \n\
+	function simulate( scenario, N, lowp ) { \n\
+		if( scenario.limit === N + 4 || lowp === 3 ) { \n\
+			return score( scenario.grid, N ); \n\
 		} \n\
 		var \n\
 		i, j, pX, v, \n\
 		s = 0.0, \n\
 		t = 0, \n\
+		grid = scenario.grid, \n\
+		cache = scenario.cache, \n\
 		h = (grid[N] ^ (grid[N|1] << 7) ^ (grid[N|2] << 2) ^ (grid[N|3] << 13)); \n\
 		h = ((h ^ (h >>> 16)) & 0xFFFF) << 2; \n\
 		if( hMap[h] === grid[N] && hMap[h|1] === grid[N|1] && hMap[h|2] === grid[N|2] ) { \n\
@@ -147,12 +149,12 @@ function makeAI( ) {
 			++ t; \n\
 			// add 2 with p = 0.9 \n\
 			grid[N] |= 2; \n\
-			pX = thinkX( grid, cache, N, lowp ) * 9; \n\
-			v = thinkY( grid, cache, N, lowp ) * 9; \n\
+			pX = thinkX( scenario, N, lowp ) * 9; \n\
+			v = thinkY( scenario, N, lowp ) * 9; \n\
 			// add 4 with p = 0.1 \n\
 			grid[N] |= 3; \n\
-			pX += thinkX( grid, cache, N, lowp + 1 ); \n\
-			v += thinkY( grid, cache, N, lowp + 1 ); \n\
+			pX += thinkX( scenario, N, lowp + 1 ); \n\
+			v += thinkY( scenario, N, lowp + 1 ); \n\
 			s += (v > pX) ? v : pX; \n\
 			cache[N] = v; \n\
 			grid[N] ^= 3; \n\
@@ -163,17 +165,17 @@ function makeAI( ) {
 				grid[N] |= 2 << i; \n\
 				if( (grid[N] >>> (i - 4)) & 0xF ) { \n\
 					// add 2 with p = 0.9 \n\
-					pX = thinkX( grid, cache, N, lowp ) * 9; \n\
+					pX = thinkX( scenario, N, lowp ) * 9; \n\
 					// add 4 with p = 0.1 \n\
 					grid[N] |= 3 << i; \n\
-					pX += thinkX( grid, cache, N, lowp + 1 ); \n\
+					pX += thinkX( scenario, N, lowp + 1 ); \n\
 					grid[N] ^= 1 << i; \n\
 				} \n\
 				// add 2 with p = 0.9 \n\
-				v = thinkY( grid, cache, N, lowp ) * 9; \n\
+				v = thinkY( scenario, N, lowp ) * 9; \n\
 				// add 4 with p = 0.1 \n\
 				grid[N] |= 3 << i; \n\
-				v += thinkY( grid, cache, N, lowp + 1 ); \n\
+				v += thinkY( scenario, N, lowp + 1 ); \n\
 				s += (v > pX) ? v : pX; \n\
 				cache[N|(i>>>2)] = v; \n\
 				grid[N] ^= 3 << i; \n\
@@ -184,17 +186,17 @@ function makeAI( ) {
 				++ t; \n\
 				// add 2 with p = 0.9 \n\
 				grid[N|j] |= 2; \n\
-				pX = thinkX( grid, cache, N, lowp ) * 9; \n\
+				pX = thinkX( scenario, N, lowp ) * 9; \n\
 				// add 4 with p = 0.1 \n\
 				grid[N|j] |= 3; \n\
-				pX += thinkX( grid, cache, N, lowp + 1 ); \n\
+				pX += thinkX( scenario, N, lowp + 1 ); \n\
 				if( !(grid[N|(j-1)] & 0xF) ) { \n\
 					// add 2 with p = 0.9 \n\
 					grid[N|j] ^= 1; \n\
-					v = thinkY( grid, cache, N, lowp ) * 9; \n\
+					v = thinkY( scenario, N, lowp ) * 9; \n\
 					// add 4 with p = 0.1 \n\
 					grid[N|j] |= 3; \n\
-					v += thinkY( grid, cache, N, lowp + 1 ); \n\
+					v += thinkY( scenario, N, lowp + 1 ); \n\
 					cache[N] = v; \n\
 				} else { \n\
 					v = cache[N]; \n\
@@ -208,19 +210,19 @@ function makeAI( ) {
 					if( (grid[N|j] >>> (i - 4)) & 0xF ) { \n\
 						// add 2 with p = 0.9 \n\
 						grid[N|j] |= 2 << i; \n\
-						pX = thinkX( grid, cache, N, lowp ) * 9; \n\
+						pX = thinkX( scenario, N, lowp ) * 9; \n\
 						// add 4 with p = 0.1 \n\
 						grid[N|j] |= 3 << i; \n\
-						pX += thinkX( grid, cache, N, lowp + 1 ); \n\
+						pX += thinkX( scenario, N, lowp + 1 ); \n\
 						grid[N|j] ^= 3 << i; \n\
 					} \n\
 					if( (grid[N|(j-1)] >>> i) & 0xF ) { \n\
 						// add 2 with p = 0.9 \n\
 						grid[N|j] |= 2 << i; \n\
-						v = thinkY( grid, cache, N, lowp ) * 9; \n\
+						v = thinkY( scenario, N, lowp ) * 9; \n\
 						// add 4 with p = 0.1 \n\
 						grid[N|j] |= 3 << i; \n\
-						v += thinkY( grid, cache, N, lowp + 1 ); \n\
+						v += thinkY( scenario, N, lowp + 1 ); \n\
 						grid[N|j] ^= 3 << i; \n\
 						cache[N|(i>>>2)] = v; \n\
 					} else { \n\
@@ -284,34 +286,43 @@ function makeAI( ) {
 			((grid[N+7] = lftrgt[(grid[N|3]<<1)|rgt]) !== grid[N|3])   \n\
 		); \n\
 	} \n\
-	function thinkX( grid, cache, N, lowp ) { \n\
+	function thinkX( scenario, N, lowp ) { \n\
 		var best = -1.0, s = 0.0; \n\
-		if( moveX( grid, N, 0 ) ) { \n\
-			best = simulate( grid, cache, N + 4, lowp ); \n\
+		if( moveX( scenario.grid, N, 0 ) ) { \n\
+			best = simulate( scenario, N + 4, lowp ); \n\
 		} \n\
-		if( moveX( grid, N, 1 ) ) { \n\
-			s = simulate( grid, cache, N + 4, lowp ); \n\
+		if( moveX( scenario.grid, N, 1 ) ) { \n\
+			s = simulate( scenario, N + 4, lowp ); \n\
 			return (s > best) ? s : best; \n\
 		} \n\
-		return (best === -1.0) ? scoreEnd( grid, N ) : best; \n\
+		return (best === -1.0) ? scoreEnd( scenario.grid, N ) : best; \n\
 	} \n\
-	function thinkY( grid, cache, N, lowp ) { \n\
+	function thinkY( scenario, N, lowp ) { \n\
 		var best = -1.0, s = 0.0; \n\
-		if( moveY( grid, N, 0 ) ) { \n\
-			best = simulate( grid, cache, N + 4, lowp ); \n\
+		if( moveY( scenario.grid, N, 0 ) ) { \n\
+			best = simulate( scenario, N + 4, lowp ); \n\
 		} \n\
-		if( moveY( grid, N, 1 ) ) { \n\
-			s = simulate( grid, cache, N + 4, lowp ); \n\
+		if( moveY( scenario.grid, N, 1 ) ) { \n\
+			s = simulate( scenario, N + 4, lowp ); \n\
 			return (s > best) ? s : best; \n\
 		} \n\
-		return (best === -1.0) ? scoreEnd( grid, N ) : best; \n\
+		return (best === -1.0) ? scoreEnd( scenario.grid, N ) : best; \n\
 	} \n\
 	var moves = { 'up': moveY, 'down': moveY, 'left': moveX, 'right': moveX }; \n\
+	var globGrid = null; \n\
+	var globCache = null; \n\
 	self.onmessage = function( e ) { \n\
 		var \n\
 		l = e.data.l | 0, \n\
 		dir = e.data.dir, \n\
-		grid = new Uint16Array( 4 * l ); \n\
+		grid, \n\
+		cache; \n\
+		if( !globGrid || globGrid.length < 4 * l ) { \n\
+			globGrid = new Uint16Array( 4 * l ); \n\
+			globCache = new Float32Array( 4 * l ); \n\
+		} \n\
+		grid = globGrid; \n\
+		cache = globCache; \n\
 		grid.set( e.data.grid ); \n\
 		if( !moves[dir]( grid, 0, dir === 'right' || dir === 'down' ) ) { \n\
 			self.postMessage( { dir: dir, score: -1 } ); \n\
@@ -321,12 +332,11 @@ function makeAI( ) {
 			self.postMessage( { dir: dir, score: 0 } ); \n\
 			return; \n\
 		} \n\
-		var cache = new Float32Array( 4 * l ); \n\
 		for( var i = 0; i < hMap.length; ++ i ) { \n\
 			hMap[i] = 0; \n\
 		} \n\
 		moves[dir]( grid, 0, dir === 'right' || dir === 'down' ); \n\
-		self.postMessage( { dir: dir, score: simulate( grid, cache, 4, 0 ) } ); \n\
+		self.postMessage( { dir: dir, score: simulate( {grid: grid, cache: cache, limit: 4 * l}, 4, 0 ) } ); \n\
 	} \n\
 	"], { type: 'text/javascript' } ),
 	thinkingURL = window.URL.createObjectURL( thinkingCode ),
