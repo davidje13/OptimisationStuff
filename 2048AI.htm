@@ -517,8 +517,8 @@ function make_ai( ) {
 			o.addEventListener( k, listeners[k] );
 		}
 		for( var i = 0; i < children.length; ++ i ) {
-			var o = children[i];
-			o.appendChild( (typeof o === 'string') ? document.createTextNode( o ) : o );
+			var child = children[i];
+			o.appendChild( (typeof child === 'string') ? document.createTextNode( child ) : child );
 		}
 		return o;
 	}
