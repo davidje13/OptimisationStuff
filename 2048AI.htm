@@ -381,6 +381,8 @@ function make_ai( ) {
 	function perform( dir ) {
 		if( dir === 'continue' ) {
 			target.emit( 'keepPlaying' );
+		} else if( dir === 'restart' ) {
+			target.emit( 'restart' );
 		} else {
 			target.emit( 'move', directionCodes[dir] );
 		}
@@ -415,6 +417,10 @@ function make_ai( ) {
 				perform( 'continue' );
 			}
 			play( lookahead, minTime, result );
+		}
+		if( document.getElementsByClassName( 'game-over' ).length ) {
+			console && console.log( 'starting a new game' );
+			perform( 'restart' );
 		}
 		console && console.log( 'Thinking...' );
 		hadwon = false;
