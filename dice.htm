@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<style>
+body {
+  font-family: sans-serif;
+}
+#vis {
+  display: flex;
+  flex-flow: row wrap;
+}
+canvas {
+  border: 2px solid #666666;
+  margin: 0 5px 10px;
+}
+</style>
+<script>
+function gcd(a, b) {
+  // https://en.wikipedia.org/wiki/Euclidean_algorithm
+  while (b) {
+    [a, b] = [b, a % b];
+  }
+  return a;
+}
+
+class Fraction {
+  constructor(num, den = 1) {
+    this.num = num;
+    this.den = den;
+  }
+
+  static ZERO = new Fraction(0);
+  static ONE = new Fraction(1);
+  static NaN = new Fraction(0, 0);
+
+  static make(num, den) {
+    if (typeof num === 'string' && den === undefined) {
+      [num, den = '1'] = num.split('/');
+    }
+    if (typeof num === 'string' && typeof den === 'string') {
+      num = Number.parseInt(num.trim(), 10);
+      den = Number.parseInt(den.trim(), 10);
+    }
+    if (Math.round(num) !== num || Math.round(den) !== den) {
+      throw new Error(`invalid fraction: ${num}/${den}`);
+    }
+    if (den < 0) {
+      num = -num;
+      den = -den;
+    }
+    return new Fraction(num, den);
+  }
+
+  static max(...values) {
+    if (values.length === 0) {
+      return Fraction.NaN;
+    }
+    return values.reduce((a, b) => a.gt(b) ? a : b);
+  }
+
+  static min(...values) {
+    if (values.length === 0) {
+      return Fraction.NaN;
+    }
+    return values.reduce((a, b) => a.lt(b) ? a : b);
+  }
+
+  norm() {
+    const m = gcd(Math.abs(this.num), this.den);
+    return m > 1 ? new Fraction(this.num / m, this.den / m) : this;
+  }
+
+  add(b) {
+    if (this.den === b.den) {
+      return new Fraction(this.num + b.num, this.den);
+    }
+    return new Fraction(this.num * b.den + b.num * this.den, this.den * b.den);
+  }
+
+  subtract(b) {
+    if (this.den === b.den) {
+      return new Fraction(this.num - b.num, this.den);
+    }
+    return new Fraction(this.num * b.den - b.num * this.den, this.den * b.den);
+  }
+
+  multiply(b) {
+    return new Fraction(this.num * b.num, this.den * b.den);
+  }
+
+  divide(b) {
+    if (b.num < 0) {
+      return new Fraction(-this.num * b.den, this.den * -b.num);
+    } else {
+      return new Fraction(this.num * b.den, this.den * b.num);
+    }
+  }
+
+  abs() {
+    return this.num < 0 ? new Fraction(-this.num, this.den) : this;
+  }
+
+  eq(b) {
+    return this.num * b.den === b.num * this.den;
+  }
+
+  gt(b) {
+    return this.num * b.den > b.num * this.den;
+  }
+
+  lt(b) {
+    return this.num * b.den < b.num * this.den;
+  }
+
+  toFloat() {
+    return this.num / this.den;
+  }
+
+  toString() {
+    return `${this.num}/${this.den}`;
+  }
+}
+
+class Distribution {
+  constructor(offset, values) {
+    this.offset = offset;
+    this.values = values;
+  }
+
+  static UNITY = new Distribution(0, [Fraction.ONE]);
+
+  convolve(b) {
+    const d2 = [];
+    for (let i = 0; i < this.values.length; ++i) {
+      for (let j = 0; j < b.values.length; ++j) {
+        d2[i+j] = this.values[i].multiply(b.values[j]).add(d2[i+j] ?? Fraction.ZERO).norm();
+      }
+    }
+    return new Distribution(this.offset + b.offset, d2);
+  }
+
+  accumulate() {
+    const d2 = [];
+    let v = Fraction.ZERO;
+    for (let i = 0; i < this.values.length; ++i) {
+      v = v.add(this.values[i]).norm();
+      d2.push(v);
+    }
+    return new Distribution(this.offset, d2);
+  }
+
+  minValue() {
+    for (let i = 0; i < this.values.length; ++i) {
+      if (this.values[i].gt(Fraction.ZERO)) {
+        return this.offset + i;
+      }
+    }
+    return 0;
+  }
+
+  maxValue() {
+    for (let i = this.values.length; (i--) > 0;) {
+      if (this.values[i].gt(Fraction.ZERO)) {
+        return this.offset + i;
+      }
+    }
+    return 0;
+  }
+
+  maxProbability() {
+    return Fraction.max(...this.values);
+  }
+
+  mapValues(fn) {
+    const r = [];
+    for (let i = 0; i < this.values.length; ++i) {
+      r.push(fn(this.offset + i, this.values[i]));
+    }
+    return r;
+  }
+
+  findAccumulatedTargetAndDiff(target) {
+    let v = Fraction.ZERO;
+    for (let i = 0; i < this.values.length; ++i) {
+      v = v.add(this.values[i]).norm();
+      if (!v.lt(target)) {
+        return [this.offset + i, v.subtract(target)];
+      }
+    }
+    return [this.offset + this.values.length, v.subtract(target)];
+  }
+
+  toString() {
+    return this.values.map((v, i) => `${this.offset + i}: ${v}`).join('; ');
+  }
+}
+
+class Die {
+  constructor(sides) {
+    this.sides = sides;
+    const p = new Fraction(1, sides);
+    const d = [];
+    for (let i = 0; i < sides; ++i) {
+      d.push(p);
+    }
+    this.distribution = new Distribution(1, d);
+  }
+
+  toString() {
+    return `d${this.sides}`;
+  }
+}
+
+const dpr = window.devicePixelRatio;
+
+class Graph {
+  constructor(w, h) {
+    this.container = document.createElement('div');
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = w * dpr;
+    this.canvas.height = h * dpr;
+    this.canvas.style.width = `${w}px`;
+    this.canvas.style.height = `${h}px`;
+    this.ctx = this.canvas.getContext('2d');
+    this.container.append(this.canvas);
+    this.w = w * dpr;
+    this.h = h * dpr;
+  }
+
+  draw({ xRange, yRange, series }) {
+    this.ctx.clearRect(0, 0, this.w, this.h);
+
+    const mx = 1 / (xRange[1] - xRange[0]);
+    const my = 1 / (yRange[0] - yRange[1]);
+    const sx = this.w;
+    const sy = this.h;
+    const toX = (x) => (x - xRange[0]) * mx * sx;
+    const toY = (y) => (y - yRange[1]) * my * sy;
+    const toYClamp = (y) => Math.max(0, Math.min(1, (y - yRange[1]) * my)) * sy;
+
+    for (const { type, data } of series) {
+      switch (type) {
+      case 'bar':
+        this.ctx.fillStyle = '#0033CC';
+        for (const p of data) {
+          if (p.x < xRange[0] || p.x > xRange[1]) {
+            continue;
+          }
+          const x0 = toX(p.x - 0.4);
+          const x1 = toX(p.x + 0.4);
+          const y0 = toYClamp(p.y);
+          const y1 = toYClamp(0);
+          this.ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+        }
+        break;
+      case 'line':
+        this.ctx.strokeStyle = '#CC3300';
+        this.ctx.lineWidth = dpr;
+        const path = new Path2D();
+        for (const p of data) {
+          path.lineTo(toX(p.x), toY(p.y));
+        }
+        this.ctx.stroke(path);
+        break;
+      }
+    }
+  }
+}
+
+function readDice(v) {
+  const r = [];
+  for (d of v.split(',')) {
+    let [count, sides] = d.split('d');
+    if (sides === undefined) {
+      sides = count;
+      count = 1;
+    } else {
+      count = Number.parseInt(count.trim(), 10);
+    }
+    sides = Number.parseInt(sides.trim(), 10);
+    if (count > 0 && sides > 1) {
+      r.push({ die: new Die(sides), count });
+    }
+  }
+  return r;
+}
+
+function countDice(dice) {
+  const counts = new Map();
+  for (const die of dice) {
+    counts.set(die, (counts.get(die) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function writeDice(dice) {
+  const counts = countDice(dice);
+  const r = [];
+  for (const [die, count] of counts) {
+    r.push(`${count > 1 ? count : 'a '}${die}`);
+  }
+  if (r.length > 1) {
+    r[r.length - 1] = 'and ' + r[r.length - 1];
+  }
+  return r.join(', ');
+}
+
+function solve(dice, target) {
+  let current = [{ distribution: Distribution.UNITY, dice: [], p: 0 }];
+  let next = [];
+  while (current.length > 0) {
+    for (const c of current) {
+      const used = countDice(c.dice);
+      for (let i = c.p; i < dice.length; ++i) {
+        const { die, count } = dice[i];
+        if (used.get(die) >= count) {
+          continue;
+        }
+        const diceUsed = [...c.dice, die];
+        const distribution = c.distribution.convolve(die.distribution);
+        const [pos, diff] = distribution.findAccumulatedTargetAndDiff(target);
+        if (diff.eq(Fraction.ZERO)) {
+          return [distribution, diceUsed, pos + 1];
+        }
+        next.push({ distribution, dice: diceUsed, p: i });
+      }
+    }
+    current = next;
+    next = [];
+  }
+  throw new Error('no solution found');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const num = document.getElementById('numerator');
+  const den = document.getElementById('denominator');
+  const available = document.getElementById('available');
+  const use = document.getElementById('use');
+
+  const g1 = new Graph(400, 200);
+  const g2 = new Graph(400, 200);
+  document.getElementById('vis').append(g1.container, g2.container);
+
+  function clear() {
+    g1.draw({ xRange: [0, 0], yRange: [0, 0], series: [] });
+    g2.draw({ xRange: [0, 0], yRange: [0, 0], series: [] });
+  }
+
+  function recalculate() {
+    const target = Fraction.ONE.subtract(Fraction.make(num.value, den.value));
+    if (!target.gt(Fraction.ZERO)) {
+      use.value = 'Always';
+      clear();
+      return;
+    }
+    if (!target.lt(Fraction.ONE)) {
+      use.value = 'Never';
+      clear();
+      return;
+    }
+    const dice = readDice(available.value);
+    if (dice.length === 0) {
+      use.value = 'No dice available!';
+      clear();
+      return;
+    }
+
+    try {
+      const [dist, diceUsed, v] = solve(dice, target);
+      use.value = `Roll ${writeDice(diceUsed)}; you need ${v} or better.`;
+
+      const xRange = [dist.minValue() - 0.5, dist.maxValue() + 0.5];
+      g1.draw({
+        xRange,
+        yRange: [0, dist.maxProbability().toFloat()],
+        series: [
+          { type: 'bar', data: dist.mapValues((x, y) => ({ x, y: y.toFloat() })) },
+        ],
+      });
+      g2.draw({
+        xRange,
+        yRange: [0, 1],
+        series: [
+          { type: 'bar', data: dist.accumulate().mapValues((x, y) => ({ x, y: y.toFloat() })) },
+          { type: 'line', data: [
+            { x: xRange[0], y: target.toFloat() },
+            { x: xRange[1], y: target.toFloat() },
+          ] },
+        ],
+      });
+    } catch {
+      use.value = 'No exact solution';
+      clear();
+      return;
+    }
+  }
+
+  document.getElementById('solver').addEventListener('submit', (e) => {
+    e.preventDefault();
+    recalculate();
+  });
+  num.addEventListener('input', recalculate);
+  den.addEventListener('input', recalculate);
+  available.addEventListener('input', recalculate);
+
+  recalculate();
+});
+</script>
+</head>
+<body>
+<main>
+<form id="solver" action="#">
+<h1>Dice Solver</h1>
+<h2>Request</h2>
+<p>
+Odds of
+<input id="numerator" type="number" step="1" min="0" value="2" />
+in
+<input id="denominator" type="number" step="1" min="1" value="9" />,
+with available dice
+<input id="available" type="text" value="4d6, 2d4, 3d8, 2d12, 3d20" />
+</p>
+<h2>Result</h2>
+<p><output id="use"></output></p>
+<h2>Probabilities</h2>
+<div id="vis"></div>
+</form>
+</main>
+<footer>Inspired by: <a href="https://xkcd.com/3015/" target="_blank">https://xkcd.com/3015/</a></footer>
+</body>
+</html>
